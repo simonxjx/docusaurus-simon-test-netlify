@@ -76,7 +76,7 @@ Value Proposition
 - 1–2 sentences explaining the value of the document and why it is useful for readers.
 
 Quick Summary of Content
-- 3–5 concise points summarizing the main content, one sentence per line.
+- 3–5 concise points summarizing the main content, one per line.
 
 Requirements:
 - Focus only on key information
