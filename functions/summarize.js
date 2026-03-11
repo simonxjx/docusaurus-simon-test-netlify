@@ -1,7 +1,8 @@
 // functions/summarize.js
-const fetch = require("node-fetch"); // Node 18+ 可直接用全局 fetch
-
 exports.handler = async function(event, context) {
+  // 动态 import node-fetch，兼容 v3 ES Module
+  const fetch = (await import("node-fetch")).default;
+
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -25,7 +26,9 @@ exports.handler = async function(event, context) {
     }
 
     if (!text) throw new Error("No text provided");
-    text = text.slice(0, 10000); // 限制长度，防止太长
+
+    // 限制最大长度，防止 token 爆
+    text = text.slice(0, 10000);
 
     const isChinese = /[\u4e00-\u9fa5]/.test(text.slice(0, 200));
 
@@ -97,6 +100,7 @@ ${text}
     );
 
     const data = await response.json();
+
     let summary = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // 清理 Markdown 或多余换行
