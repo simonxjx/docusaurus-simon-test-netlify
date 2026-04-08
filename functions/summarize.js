@@ -88,18 +88,23 @@ ${text}
 
     // 调用 Google Gemini API
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2048, thinkingLevel: "none"},
         }),
       }
     );
 
     const data = await response.json();
+
+    // 加这行！看 finishReason 和实际消耗
+    console.log("finish:", data.candidates?.[0]?.finishReason);
+    console.log("token usage:", JSON.stringify(data.usageMetadata));
+    console.log("summary length:", summary.length);
 
     let summary = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
