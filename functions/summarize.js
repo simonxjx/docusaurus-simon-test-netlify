@@ -32,14 +32,16 @@ exports.handler = async function(event, context) {
 
     const prompt = isChinese
       ? `
-请阅读以下技术文档，并生成结构化摘要。
+请阅读以下技术文档，并生成结构化摘要。严格输出 HTML，不要输出 Markdown。
 
-输出必须包含以下三个部分：
+输出格式要求：
 - 每个部分的标题加粗并加冒号，然后换一行
 - 第二和第三部分标题上方空一行
-- 输出 HTML 格式，可直接在网页中渲染
+- 输出纯 HTML 格式，可直接在网页中渲染
 - **输出前后不包含多余空行或字符**
 - 忽略图片、代码块和表格
+
+输出必须包含以下三个部分：
 
 目的与范围
 - 用1-2句话说明文档的目的以及涵盖范围。
@@ -58,14 +60,16 @@ exports.handler = async function(event, context) {
 ${text}
 `
       : `
-Read the following technical documentation and generate a structured summary.
+Read the following technical documentation and generate a structured summary. Output strict HTML only, no Markdown.
 
-The output must contain the following three sections:
+Output format requirements:
 - Bold the title of each section and add a colon, then move to a new line
 - Leave a blank line above the titles of the second and third sections
-- Output HTML string, can be directly rendered on a webpage
+- Output pure HTML string, can be directly rendered on a webpage
 - **Do not include any extra characters or blank lines at the beginning or end**
 - Ignore images, code blocks, and tables
+
+The output must contain the following three sections:
 
 Purpose & Scope
 - 1–2 sentences explaining the purpose of the document and what it covers.
