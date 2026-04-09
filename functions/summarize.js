@@ -134,9 +134,6 @@ ${text}
                      .replace(/\s*```$/, "")
                      .trim();
 
-    // 清除 <ul> 前后多余的空 <p></p>
-    summary = summary.replace(/(?:\s*<p>\s*<\/p>\s*)*(<ul>[\s\S]*?<\/ul>)(?:\s*<p>\s*<\/p>\s*)*/g, "$1");
-
     // 兜底：如果 Gemini 仍然输出纯文本 bullet（• / - / *），转换为 <ul><li>
     summary = summary.replace(
       /(?:^|\n)((?:[•\-\*] .+(?:\n|$))+)/g,
@@ -144,7 +141,7 @@ ${text}
         const items = block.trim().split("\n").map(line =>
           `<li>${line.replace(/^[•\-\*]\s*/, "").trim()}</li>`
         ).join("\n");
-        return `\n<p><ul>\n${items}\n</ul></p>\n`;
+        return `\n<ul>\n${items}\n</ul>\n`;
       }
     );
 
