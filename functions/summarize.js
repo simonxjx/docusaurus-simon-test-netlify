@@ -87,7 +87,12 @@ ${text}
 `;
 
     // 调用 Google Gemini API
-    const response = await fetch(
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+    let response;
+    try {
+      response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GOOGLE_API_KEY}`,
       {
         method: "POST",
@@ -96,12 +101,34 @@ ${text}
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
         }),
-      }
-    );
+          signal: controller.signal,
+        }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error("Gemini API error:", response.status, errBody);
+      throw new Error(`Gemini API returned ${response.status}`);
+    }
 
     const data = await response.json();
 
-    let summary = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const candidate = data.candidates?.[0];
+    if (!candidate) {
+      console.error("Gemini returned no candidates:", JSON.stringify(data));
+      throw new Error("No candidates returned from Gemini");
+    }
+
+    const finishReason = candidate.finishReason;
+    if (finishReason && finishReason !== "STOP") {
+      console.error("Gemini finish reason:", finishReason);
+      throw new Error(`Gemini stopped with reason: ${finishReason}`);
+    }
+
+    let summary = candidate.content?.parts?.[0]?.text || "";
 
     // 清理 Markdown 或多余换行
     summary = summary.replace(/^```html\s*/i, "")
@@ -114,7 +141,12 @@ ${text}
     return { statusCode: 200, body: JSON.stringify({ summary }), headers };
 
   } catch (err) {
-    console.error("Serverless Error:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }), headers };
+    const isAbort = err.name === "AbortError";
+    console.error("Serverless Error:", isAbort ? "Gemini request timed out" : err.message);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: isAbort ? "Request timed out" : err.message }),
+      headers
+    };
   }
 };
