@@ -1,8 +1,5 @@
 {
   "name": "netlify-gemini-api",
   "version": "1.0.0",
-  "main": "functions/summarize.js",
-  "dependencies": {
-    "node-fetch": "^3.3.1"
-  }
+  "main": "functions/summarize.js"
 }
