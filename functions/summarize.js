@@ -134,11 +134,8 @@ ${text}
                      .replace(/\s*```$/, "")
                      .trim();
 
-    // 把 <ul> 移入前面的 <p> 内，同时清除前后多余的空 <p></p>
-    summary = summary.replace(
-      /<\/p>(?:\s*<p>\s*<\/p>)*\s*(<ul>[\s\S]*?<\/ul>)(?:\s*<p>\s*<\/p>)*/g,
-      "$1</p>"
-    );
+    // 清除 <ul> 前后多余的空 <p></p>
+    summary = summary.replace(/(?:\s*<p>\s*<\/p>\s*)*(<ul>[\s\S]*?<\/ul>)(?:\s*<p>\s*<\/p>\s*)*/g, "$1");
 
     // 兜底：如果 Gemini 仍然输出纯文本 bullet（• / - / *），转换为 <ul><li>
     summary = summary.replace(
