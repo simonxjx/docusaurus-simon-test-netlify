@@ -126,6 +126,11 @@ ${text}
 
     if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
 
+    // 没有 <p> 标签时，把换行转成 <br>
+    if (!/<p[\s>]/i.test(summary)) {
+      summary = summary.replace(/\n/g, "<br>");
+    }
+
     return { statusCode: 200, body: JSON.stringify({ summary }), headers };
 
   } catch (err) {
