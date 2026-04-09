@@ -26,63 +26,29 @@ exports.handler = async function(event, context) {
     if (!text) throw new Error("No text provided");
 
     // 限制最大长度，防止 token 爆 & 超时
-    text = text.slice(0, 5000);
+    text = text.slice(0, 3000);
 
     const isChinese = /[\u4e00-\u9fa5]/.test(text.slice(0, 200));
 
     const prompt = isChinese
-      ? `
-请阅读以下技术文档，并生成结构化摘要。
+      ? `用纯HTML格式为以下技术文档生成结构化摘要（不输出Markdown，忽略图片/代码块/表格）。
 
-输出必须包含以下三个部分：
-- 每个部分的标题加粗并加冒号，然后换一行
-- 第二和第三部分标题上方空一行
-- 输出 HTML 格式，可直接在网页中渲染
-- **输出前后不包含多余空行或字符**
-- 忽略图片、代码块和表格
-
-目的与范围
-- 用1-2句话说明文档的目的以及涵盖范围。
-
-价值说明
-- 用1-2句话说明文档对读者的价值或能解决什么问题。
-
-内容快速概览
-- 用3-5条简洁的要点总结文档的主要内容，每条一行。
-
-要求：
-- 只保留核心信息
-- 表达简洁清晰
+包含三个部分，每部分标题用<b>加粗加冒号</b>：
+1. <b>目的与范围：</b> 1-2句
+2. <b>价值说明：</b> 1-2句
+3. <b>内容概览：</b> 3-5条要点用<ul><li>格式
 
 文档：
-${text}
-`
-      : `
-Read the following technical documentation and generate a structured summary.
+${text}`
+      : `Generate a structured summary in pure HTML (no Markdown, ignore images/code/tables).
 
-The output must contain the following three sections:
-- Bold the title of each section and add a colon, then move to a new line
-- Leave a blank line above the titles of the second and third sections
-- Output HTML string, can be directly rendered on a webpage
-- **Do not include any extra characters or blank lines at the beginning or end**
-- Ignore images, code blocks, and tables
-
-Purpose & Scope
-- 1–2 sentences explaining the purpose of the document and what it covers.
-
-Value Proposition
-- 1–2 sentences explaining the value of the document and why it is useful for readers.
-
-Quick Summary of Content
-- 3–5 concise points summarizing the main content, one per line.
-
-Requirements:
-- Focus only on key information
-- Keep the summary concise and clear
+Three sections with <b>bold titles</b>:
+1. <b>Purpose & Scope:</b> 1-2 sentences
+2. <b>Value Proposition:</b> 1-2 sentences
+3. <b>Quick Summary:</b> 3-5 bullet points as <ul><li>
 
 Document:
-${text}
-`;
+${text}`;
 
     // 调用 Google Gemini API，超时设为 9s（Netlify 函数限制 10s）
     const controller = new AbortController();
@@ -91,14 +57,14 @@ ${text}
     let response;
     try {
       response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${process.env.GOOGLE_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
-          }),
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+        }),
           signal: controller.signal,
         }
       );
@@ -133,6 +99,17 @@ ${text}
                      .replace(/^```\s*/i, "")
                      .replace(/\s*```$/, "")
                      .trim();
+
+    // 兜底：如果 Gemini 仍然输出纯文本 bullet（• / - / *），转换为 <ul><li>
+    summary = summary.replace(
+      /(?:^|\n)((?:[•\-\*] .+(?:\n|$))+)/g,
+      (_, block) => {
+        const items = block.trim().split("\n").map(line =>
+          `<li>${line.replace(/^[•\-\*]\s*/, "").trim()}</li>`
+        ).join("\n");
+        return `\n<ul>\n${items}\n</ul>\n`;
+      }
+    );
 
     if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
 

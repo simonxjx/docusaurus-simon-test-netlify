@@ -1,5 +1,4 @@
 // functions/summarize.js
-// Netlify Functions 运行在 Node 18+，原生支持 fetch，无需 node-fetch
 exports.handler = async function(event, context) {
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -25,23 +24,21 @@ exports.handler = async function(event, context) {
 
     if (!text) throw new Error("No text provided");
 
-    // 限制最大长度，防止 token 爆 & 超时（5000 足够生成摘要）
-    text = text.slice(0, 5000);
+    // 限制最大长度，防止 token 爆
+    text = text.slice(0, 10000);
 
     const isChinese = /[\u4e00-\u9fa5]/.test(text.slice(0, 200));
 
     const prompt = isChinese
       ? `
-请阅读以下技术文档，并生成结构化摘要。严格输出 HTML，不要输出 Markdown。
-
-输出格式要求：
-- 每个部分的标题加粗并加冒号，然后换一行
-- 第二和第三部分标题上方空一行
-- 输出纯 HTML 格式，可直接在网页中渲染
-- **输出前后不包含多余空行或字符**
-- 忽略图片、代码块和表格
+请阅读以下技术文档，并生成结构化摘要。
 
 输出必须包含以下三个部分：
+- 每个部分的标题加粗并加冒号，然后换一行
+- 第二和第三部分标题上方空一行
+- 输出 HTML 格式，可直接在网页中渲染
+- **输出前后不包含多余空行或字符**
+- 忽略图片、代码块和表格
 
 目的与范围
 - 用1-2句话说明文档的目的以及涵盖范围。
@@ -60,16 +57,14 @@ exports.handler = async function(event, context) {
 ${text}
 `
       : `
-Read the following technical documentation and generate a structured summary. Output strict HTML only, no Markdown.
-
-Output format requirements:
-- Bold the title of each section and add a colon, then move to a new line
-- Leave a blank line above the titles of the second and third sections
-- Output pure HTML string, can be directly rendered on a webpage
-- **Do not include any extra characters or blank lines at the beginning or end**
-- Ignore images, code blocks, and tables
+Read the following technical documentation and generate a structured summary.
 
 The output must contain the following three sections:
+- Bold the title of each section and add a colon, then move to a new line
+- Leave a blank line above the titles of the second and third sections
+- Output HTML string, can be directly rendered on a webpage
+- **Do not include any extra characters or blank lines at the beginning or end**
+- Ignore images, code blocks, and tables
 
 Purpose & Scope
 - 1–2 sentences explaining the purpose of the document and what it covers.
@@ -88,27 +83,18 @@ Document:
 ${text}
 `;
 
-    // 调用 Google Gemini API，超时设为 9s（Netlify 函数限制 10s）
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000);
-
-    let response;
-    try {
-      response = await fetch(
+    // 调用 Google Gemini API
+    const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
         }),
-          signal: controller.signal,
-        }
-      );
-    } finally {
-      clearTimeout(timeout);
-    }
+      }
+    );
 
     if (!response.ok) {
       const errBody = await response.text();
@@ -137,17 +123,6 @@ ${text}
                      .replace(/^```\s*/i, "")
                      .replace(/\s*```$/, "")
                      .trim();
-
-    // 兜底：如果 Gemini 仍然输出纯文本 bullet（• / - / *），转换为 <ul><li>
-    summary = summary.replace(
-      /(?:^|\n)((?:[•\-\*] .+(?:\n|$))+)/g,
-      (_, block) => {
-        const items = block.trim().split("\n").map(line =>
-          `<li>${line.replace(/^[•\-\*]\s*/, "").trim()}</li>`
-        ).join("\n");
-        return `\n<ul>\n${items}\n</ul>\n`;
-      }
-    );
 
     if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
 
