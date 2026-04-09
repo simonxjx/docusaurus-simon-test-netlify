@@ -27,8 +27,8 @@ exports.handler = async function(event, context) {
 
     if (!text) throw new Error("No text provided");
 
-    // 限制最大长度，防止 token 爆
-    text = text.slice(0, 10000);
+    // 限制最大长度，防止 token 爆 & 超时（5000 足够生成摘要）
+    text = text.slice(0, 5000);
 
     const isChinese = /[\u4e00-\u9fa5]/.test(text.slice(0, 200));
 
@@ -86,9 +86,9 @@ Document:
 ${text}
 `;
 
-    // 调用 Google Gemini API
+    // 调用 Google Gemini API，超时设为 9s（Netlify 函数限制 10s）
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    const timeout = setTimeout(() => controller.abort(), 9000);
 
     let response;
     try {
@@ -99,7 +99,7 @@ ${text}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
         }),
           signal: controller.signal,
         }
