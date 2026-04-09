@@ -1,8 +1,6 @@
 // functions/summarize.js
+// Netlify Functions 运行在 Node 18+，原生支持 fetch，无需 node-fetch
 exports.handler = async function(event, context) {
-  // 动态 import node-fetch，兼容 v3 ES Module
-  const fetch = (await import("node-fetch")).default;
-
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -135,6 +133,17 @@ ${text}
                      .replace(/^```\s*/i, "")
                      .replace(/\s*```$/, "")
                      .trim();
+
+    // 兜底：如果 Gemini 仍然输出纯文本 bullet（• / - / *），转换为 <ul><li>
+    summary = summary.replace(
+      /(?:^|\n)((?:[•\-\*] .+(?:\n|$))+)/g,
+      (_, block) => {
+        const items = block.trim().split("\n").map(line =>
+          `<li>${line.replace(/^[•\-\*]\s*/, "").trim()}</li>`
+        ).join("\n");
+        return `\n<ul>\n${items}\n</ul>\n`;
+      }
+    );
 
     if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
 
