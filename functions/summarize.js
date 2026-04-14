@@ -134,8 +134,10 @@ ${text}
         .replace(/(<\/li>)\s*<br>/gi, "$1")
         .replace(/<br>\s*(<\/ul>)/gi, "$1")
         .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
-        .replace(/\r?\n/g, "<br>")                              // ← 先统一换行符
-        .replace(/(<\/ul>)(<br>|\s)*(<\/div>)/gi, "$1$3");      // ← 再清理 </ul> 和 </div> 之间所有内容
+        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
+        .replace(/\r?\n/g, "<br>")
+        .replace(/(<br>\s*)+(<\/div>)/gi, "$2")    // 清理 </div> 前所有 <br>
+        .replace(/(<br>\s*)+$/gi, "");             // 清理结尾所有 <br>（无 </div> 时兜底）
 
       if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
       return summary;
