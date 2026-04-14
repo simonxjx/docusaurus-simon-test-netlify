@@ -113,8 +113,31 @@ ${text}
       const json = await res.json();
       let summary = (json.choices?.[0]?.message?.content || "")
         .replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
+
+      // 1. Markdown → HTML 兜底转换
+      summary = summary
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^- (.+)$/gm, "<li>$1</li>")
+        .replace(/<\/?ul>/gi, "")                                          // ← 新增：先剥掉所有已有的 <ul>
+        .replace(/(<li>[\s\S]*?<\/li>)+/g, match => `<ul>${match}</ul>`)  // 再统一重新包裹
+        .replace(/\n{2,}/g, "<br><br>")
+        .replace(/\n/g, "<br>");
+
+      // 2. 清理多余结构
+      summary = summary
+        .replace(/<ul>\s*<ul>/g, "<ul>")
+        .replace(/<\/ul>\s*<\/ul>/g, "</ul>")
+        .replace(/<\/ul>\s*(<br>)?\s*<ul>/g, "")
+        .replace(/<br>\s*(<ul>)/gi, "$1")
+        .replace(/(<ul>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<li>)/gi, "$1")
+        .replace(/(<\/li>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<\/ul>)/gi, "$1")
+        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
+        .replace(/(<br>)+\s*(<\/ul>|<\/div>)/gi, "$2")  // ← 新增：去除末尾多余 <br>
+        .replace(/(<\/ul>)\s*(<br>)+\s*(<\/div>)/gi, "$1$3")
+
       if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
-      if (!/<p[\s>]/i.test(summary)) summary = summary.replace(/\n/g, "<br>");
       return summary;
     }
 
