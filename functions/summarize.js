@@ -94,7 +94,13 @@ ${text}
         },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: prompt }],
+          messages: [
+            { 
+              role: "system", 
+              content: "You must output HTML only. Use <strong> for bold, <br> for line breaks, <ul><li> for lists. Do not use Markdown syntax like **, *, or -. Do not wrap output in code blocks."
+            },
+            { role: "user", content: prompt }
+          ],
           temperature: 0.2,
           max_tokens: 2048,
         }),
