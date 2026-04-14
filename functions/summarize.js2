@@ -83,35 +83,6 @@ Document:
 ${text}
 `;
 
-    // ── Groq 兜底函数（仅在 Gemini 失败时调用）──────────────────
-    async function callGroq() {
-      console.log("Gemini failed, falling back to Groq...");
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.2,
-          max_tokens: 2048,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.error("Groq API error:", res.status, errBody);
-        throw new Error(`Groq API returned ${res.status}`);
-      }
-      const json = await res.json();
-      let summary = (json.choices?.[0]?.message?.content || "")
-        .replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
-      if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
-      if (!/<p[\s>]/i.test(summary)) summary = summary.replace(/\n/g, "<br>");
-      return summary;
-    }
-
     // 调用 Google Gemini API
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${process.env.GOOGLE_API_KEY}`,
@@ -128,8 +99,7 @@ ${text}
     if (!response.ok) {
       const errBody = await response.text();
       console.error("Gemini API error:", response.status, errBody);
-      // ← 唯一改动：Gemini 失败则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      throw new Error(`Gemini API returned ${response.status}`);
     }
 
     const data = await response.json();
@@ -137,15 +107,13 @@ ${text}
     const candidate = data.candidates?.[0];
     if (!candidate) {
       console.error("Gemini returned no candidates:", JSON.stringify(data));
-      // ← 唯一改动：Gemini 无结果则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      throw new Error("No candidates returned from Gemini");
     }
 
     const finishReason = candidate.finishReason;
     if (finishReason && finishReason !== "STOP") {
       console.error("Gemini finish reason:", finishReason);
-      // ← 唯一改动：Gemini 异常终止则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      throw new Error(`Gemini stopped with reason: ${finishReason}`);
     }
 
     let summary = candidate.content?.parts?.[0]?.text || "";
