@@ -83,36 +83,6 @@ Document:
 ${text}
 `;
 
-    function cleanMarkdownToHtml(raw) {
-      let s = raw
-        .replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
-
-      s = s
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        .replace(/^- (.+)$/gm, "<li>$1</li>")
-        .replace(/<\/?ul>/gi, "")
-        .replace(/(<li>[\s\S]*?<\/li>)+/g, match => `<ul>${match}</ul>`)
-        .replace(/\n{2,}/g, "<br><br>")
-        .replace(/\n/g, "<br>");
-
-      s = s
-        .replace(/<ul>\s*<ul>/g, "<ul>")
-        .replace(/<\/ul>\s*<\/ul>/g, "</ul>")
-        .replace(/<\/ul>\s*(<br>)?\s*<ul>/g, "")
-        .replace(/<br>\s*(<ul>)/gi, "$1")
-        .replace(/(<ul>)\s*<br>/gi, "$1")
-        .replace(/<br>\s*(<li>)/gi, "$1")
-        .replace(/(<\/li>)\s*<br>/gi, "$1")
-        .replace(/<br>\s*(<\/ul>)/gi, "$1")
-        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
-        .replace(/\r?\n/g, "<br>")
-        .replace(/(<br>\s*)+(<\/div>)/gi, "$2")
-        .replace(/(<br>\s*)+$/gi, "")
-        .replace(/(<br\s*\/?>\s*){3,}/gi, "<br><br>");
-
-      return s;
-    }
-
     // ── Cerebras 兜底函数（仅在 Groq 失败时调用）────────────────
     async function callCerebras() {
       console.log("Groq failed, falling back to Cerebras...");
@@ -141,8 +111,34 @@ ${text}
         throw new Error(`Cerebras API returned ${res.status}`);
       }
       const json = await res.json();
-      const summary = cleanMarkdownToHtml(json.choices?.[0]?.message?.content || "");
-      return summary || (isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.");
+      let summary = (json.choices?.[0]?.message?.content || "")
+        .replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
+
+      summary = summary
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^- (.+)$/gm, "<li>$1</li>")
+        .replace(/<\/?ul>/gi, "")
+        .replace(/(<li>[\s\S]*?<\/li>)+/g, match => `<ul>${match}</ul>`)
+        .replace(/\n{2,}/g, "<br><br>")
+        .replace(/\n/g, "<br>");
+
+      summary = summary
+        .replace(/<ul>\s*<ul>/g, "<ul>")
+        .replace(/<\/ul>\s*<\/ul>/g, "</ul>")
+        .replace(/<\/ul>\s*(<br>)?\s*<ul>/g, "")
+        .replace(/<br>\s*(<ul>)/gi, "$1")
+        .replace(/(<ul>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<li>)/gi, "$1")
+        .replace(/(<\/li>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<\/ul>)/gi, "$1")
+        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
+        .replace(/\r?\n/g, "<br>")
+        .replace(/(<br>\s*)+(<\/div>)/gi, "$2")
+        .replace(/(<br>\s*)+$/gi, "")
+        .replace(/(<br\s*\/?>\s*){3,}/gi, "<br><br>");
+
+      if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
+      return summary;
     }
 
     // ── Groq 兜底函数（仅在 Gemini 失败时调用）──────────────────
@@ -157,8 +153,8 @@ ${text}
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
           messages: [
-            { 
-              role: "system", 
+            {
+              role: "system",
               content: "You must output HTML only. Use <strong> for bold, <br> for line breaks, <ul><li> for lists. Do not use Markdown syntax like **, *, or -. Do not wrap output in code blocks."
             },
             { role: "user", content: prompt }
@@ -170,11 +166,39 @@ ${text}
       if (!res.ok) {
         const errBody = await res.text();
         console.error("Groq API error:", res.status, errBody);
-        return await callCerebras();
+        throw new Error(`Groq API returned ${res.status}`);
       }
       const json = await res.json();
-      const summary = cleanMarkdownToHtml(json.choices?.[0]?.message?.content || "");
-      if (!summary) return await callCerebras();
+      let summary = (json.choices?.[0]?.message?.content || "")
+        .replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
+
+      // 1. Markdown → HTML 兜底转换
+      summary = summary
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^- (.+)$/gm, "<li>$1</li>")
+        .replace(/<\/?ul>/gi, "")                                          // ← 新增：先剥掉所有已有的 <ul>
+        .replace(/(<li>[\s\S]*?<\/li>)+/g, match => `<ul>${match}</ul>`)  // 再统一重新包裹
+        .replace(/\n{2,}/g, "<br><br>")
+        .replace(/\n/g, "<br>");
+
+      // 2. 清理多余结构
+      summary = summary
+        .replace(/<ul>\s*<ul>/g, "<ul>")
+        .replace(/<\/ul>\s*<\/ul>/g, "</ul>")
+        .replace(/<\/ul>\s*(<br>)?\s*<ul>/g, "")
+        .replace(/<br>\s*(<ul>)/gi, "$1")
+        .replace(/(<ul>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<li>)/gi, "$1")
+        .replace(/(<\/li>)\s*<br>/gi, "$1")
+        .replace(/<br>\s*(<\/ul>)/gi, "$1")
+        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
+        .replace(/(<\/strong>:?)\s*(<br>)+/gi, "$1<br>")
+        .replace(/\r?\n/g, "<br>")
+        .replace(/(<br>\s*)+(<\/div>)/gi, "$2")    // 清理 </div> 前所有 <br>
+        .replace(/(<br>\s*)+$/gi, "")              // 清理结尾所有 <br>（无 </div> 时兜底）
+        .replace(/(<br\s*\/?>\s*){3,}/gi, "<br><br>"); // 连续 3+ 个 <br> 压缩为 2 个
+
+      if (!summary) summary = isChinese ? "AI 未能生成摘要。" : "AI could not generate a summary.";
       return summary;
     }
 
@@ -195,7 +219,7 @@ ${text}
       const errBody = await response.text();
       console.error("Gemini API error:", response.status, errBody);
       // ← 唯一改动：Gemini 失败则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq().catch(() => callCerebras()) }), headers };
     }
 
     const data = await response.json();
@@ -204,14 +228,14 @@ ${text}
     if (!candidate) {
       console.error("Gemini returned no candidates:", JSON.stringify(data));
       // ← 唯一改动：Gemini 无结果则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq().catch(() => callCerebras()) }), headers };
     }
 
     const finishReason = candidate.finishReason;
     if (finishReason && finishReason !== "STOP") {
       console.error("Gemini finish reason:", finishReason);
       // ← 唯一改动：Gemini 异常终止则 fallback
-      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq() }), headers };
+      return { statusCode: 200, body: JSON.stringify({ summary: await callGroq().catch(() => callCerebras()) }), headers };
     }
 
     let summary = candidate.content?.parts?.[0]?.text || "";
